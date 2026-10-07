@@ -100,25 +100,31 @@ public sealed class PenCommand : Command
         public Anchor GetAnchor()
         {
             var point = Point();
-            var handle = _hasMouseDown ? point - _mouseDownPoint : Vector3d.Zero;
-            return new Anchor(point, handle);
+            if (!_hasMouseDown)
+                return new Anchor(point, Vector3d.Zero);
+
+            var dragEnd = _hasMouseMove ? _lastMousePoint : point;
+            var handle = dragEnd - _mouseDownPoint;
+            return handle.Length > _tolerance
+                ? new Anchor(_mouseDownPoint, handle)
+                : new Anchor(point, Vector3d.Zero);
         }
 
         protected override void OnDynamicDraw(GetPointDrawEventArgs e)
         {
             base.OnDynamicDraw(e);
-            var point = e.CurrentPoint;
-            var handle = _hasMouseDown ? point - _mouseDownPoint : Vector3d.Zero;
+            var cursorPoint = e.CurrentPoint;
+            if (_anchors.Count > 1 && cursorPoint.DistanceTo(_anchors[0].Point) <= _tolerance)
+                cursorPoint = _anchors[0].Point;
+
+            var point = _hasMouseDown ? _mouseDownPoint : cursorPoint;
+            var handle = _hasMouseDown ? cursorPoint - _mouseDownPoint : Vector3d.Zero;
             if (_anchors.Count == 0)
             {
                 DrawHandles(e, point, handle);
                 return;
             }
 
-            if (_anchors.Count > 1 && point.DistanceTo(_anchors[0].Point) <= _tolerance)
-                point = _anchors[0].Point;
-
-            handle = _hasMouseDown ? point - _mouseDownPoint : Vector3d.Zero;
             foreach (var anchor in _anchors)
                 DrawHandles(e, anchor.Point, anchor.Handle);
             DrawHandles(e, point, handle);
@@ -150,8 +156,23 @@ public sealed class PenCommand : Command
                 return;
 
             _mouseDownPoint = e.Point;
+            _lastMousePoint = e.Point;
             _hasMouseDown = true;
+            _hasMouseMove = false;
         }
+
+        protected override void OnMouseMove(GetPointMouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            if (!_hasMouseDown)
+                return;
+
+            _lastMousePoint = e.Point;
+            _hasMouseMove = true;
+        }
+
+        private Point3d _lastMousePoint;
+        private bool _hasMouseMove;
 
     }
 }
